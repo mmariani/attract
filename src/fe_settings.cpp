@@ -43,14 +43,13 @@
 #include "media.hpp" // for FeMedia::is_supported_media(), get/set_current_decoder()
 #endif
 
-#ifdef SFML_SYSTEM_WINDOWS
+#if defined(SFML_SYSTEM_WINDOWS)
 
 const char *FE_DEFAULT_CFG_PATH		= "./";
 const char *FE_DEFAULT_FONT			= "arial";
 const char *FE_DEFAULT_FONT_PATHS[]	= { "%SYSTEMROOT%/Fonts/", NULL };
 
-#else
-#ifdef SFML_SYSTEM_MACOS
+#elif defined(SFML_SYSTEM_MACOS)
 
 const char *FE_DEFAULT_CFG_PATH		= "$HOME/.attract/";
 const char *FE_DEFAULT_FONT			= "Arial";
@@ -60,6 +59,12 @@ const char *FE_DEFAULT_FONT_PATHS[]	=
 	"$HOME/Library/Fonts/",
 	NULL
 };
+
+#elif defined(SFML_SYSTEM_ANDROID)
+
+const char *FE_DEFAULT_CFG_PATH		= "./";
+const char *FE_DEFAULT_FONT			= "sansation.ttf";
+const char *FE_DEFAULT_FONT_PATHS[]	= { NULL };
 
 #else
 
@@ -72,7 +77,6 @@ const char *FE_DEFAULT_FONT_PATHS[]	=
 	NULL
 };
 
-#endif
 #endif
 
 const char *FE_ART_EXTENSIONS[]		=
@@ -2377,6 +2381,11 @@ bool FeSettings::get_font_file( std::string &fpath,
 		else
 			return get_font_file( fpath, ffile, m_default_font );
 	}
+
+#ifdef SFML_SYSTEM_ANDROID
+	ffile = fontname;
+	return true;
+#endif
 
 	//
 	// First check if there is a matching font file in the

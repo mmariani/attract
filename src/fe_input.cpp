@@ -32,6 +32,20 @@
 #include <SFML/Window/VideoMode.hpp>
 #include <SFML/System/Vector2.hpp>
 
+
+#ifdef SFML_SYSTEM_ANDROID
+#include <android/log.h>
+
+namespace
+{
+	// global to track when last touch event began.  When we recieve a touch end, we use this
+	// to determine if there was a swipe (and in which direction) or a tap
+	//
+	sf::Event last_touch_began;
+};
+#endif
+
+
 // Needs to stay aligned with sf::Keyboard
 //
 const char *FeInputSingle::keyStrings[] =
@@ -153,6 +167,16 @@ const char *FeInputSingle::mouseStrings[] =
 	"MiddleButton",
 	"ExtraButton1",
 	"ExtraButton2",
+	NULL
+};
+
+const char *FeInputSingle::touchStrings[] =
+{
+	"Up",
+	"Down",
+	"Left",
+	"Right",
+	"Tap",
 	NULL
 };
 
@@ -316,6 +340,41 @@ FeInputSingle::FeInputSingle( const sf::Event &e, const sf::IntRect &mc_rect, co
 			m_type = Mouse;
 			break;
 
+#ifdef SFML_SYSTEM_ANDROID
+		case sf::Event::TouchEnded:
+			{
+				const int THRESH = 100;
+
+				int diff_x = last_touch_began.touch.x - e.touch.x;
+				int diff_y = last_touch_began.touch.y - e.touch.y;
+
+				if ( abs( diff_x ) > THRESH )
+				{
+					// horizontal swipe
+					if ( diff_x > 0 )
+						m_code = TouchRight;
+					else
+						m_code = TouchLeft;
+				}
+				else if ( abs( diff_y ) > THRESH )
+				{
+					// vertical swipe
+					if ( diff_y > 0 )
+						m_code = TouchUp;
+					else
+						m_code = TouchDown;
+				}
+				else
+				{
+//__android_log_print( ANDROID_LOG_INFO, "foo", "TAP" );
+					m_code = TouchTap;
+				}
+
+				m_type = Touch;
+			}
+			break;
+#endif
+
 		default:
 			break;
 	}
@@ -342,6 +401,21 @@ FeInputSingle::FeInputSingle( const std::string &str )
 		while ( mouseStrings[i] != NULL )
 		{
 			if ( val.compare( mouseStrings[i] ) == 0 )
+			{
+				m_code = i;
+				break;
+			}
+			i++;
+		}
+	}
+	else if ( val.compare( "Touch" ) == 0 )
+	{
+		m_type = Touch;
+
+		token_helper( str, pos, val, FE_WHITESPACE );
+		while ( touchStrings[i] != NULL )
+		{
+			if ( val.compare( touchStrings[i] ) == 0 )
 			{
 				m_code = i;
 				break;
@@ -402,6 +476,11 @@ std::string FeInputSingle::as_string() const
 		temp = "Mouse ";
 		temp += mouseStrings[ m_code ];
 	}
+	else if ( m_type == Touch )
+	{
+		temp = "Touch ";
+		temp += touchStrings[ m_code ];
+	}
 	else if ( m_type >= Joystick0 )
 	{
 		temp = "Joy";
@@ -438,7 +517,7 @@ bool FeInputSingle::operator< ( const FeInputSingle &o ) const
 
 bool FeInputSingle::get_current_state( int joy_thresh ) const
 {
-	if ( m_type == Unsupported )
+	if (( m_type == Unsupported ) || ( m_type == Touch ))
 		return false;
 	else if ( m_type == Keyboard )
 		return sf::Keyboard::isKeyPressed( (sf::Keyboard::Key)m_code );
@@ -822,6 +901,15 @@ void FeInputMap::initialize_mappings()
 			{ FeInputSingle::Keyboard,    sf::Keyboard::Return,        Select },
 			{ FeInputSingle::Keyboard,    sf::Keyboard::LControl,      Select },
 			{ FeInputSingle::Joystick0,   FeInputSingle::JoyButton0,   Select },
+
+#ifdef SFML_SYSTEM_ANDROID
+			{ FeInputSingle::Touch,       FeInputSingle::TouchUp,      Up },
+			{ FeInputSingle::Touch,       FeInputSingle::TouchDown,    Down },
+			{ FeInputSingle::Touch,       FeInputSingle::TouchLeft,    Left },
+			{ FeInputSingle::Touch,       FeInputSingle::TouchRight,   Right },
+			{ FeInputSingle::Touch,       FeInputSingle::TouchTap,     Select },
+#endif
+
 			{ FeInputSingle::Unsupported, sf::Keyboard::Unknown,     LAST_COMMAND }	// keep as last
 		};
 
@@ -961,6 +1049,12 @@ FeInputMap::Command FeInputMap::map_input( const sf::Event &e, const sf::IntRect
 			}
 		}
 		break;
+
+#ifdef SFML_SYSTEM_ANDROID
+	case sf::Event::TouchBegan:
+		last_touch_began = e;
+		break;
+#endif
 
 	default:
 		break;
